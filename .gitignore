@@ -1,0 +1,23 @@
+# Trained weights (too large for git; produced locally)
+*.pth
+
+# Packed / binary datasets
+*.bin
+
+# Raw datasets
+tinystories.txt
+
+# Installers
+*.deb
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+env/
+
+# Editor / tooling
+.claude/
+.idea/
+.vscode/
