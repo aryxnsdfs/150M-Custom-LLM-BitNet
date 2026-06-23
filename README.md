@@ -62,6 +62,66 @@ ternary linear layers:
 Default hyperparameters: `d_model=256`, `nhead=8`, `num_layers=4`, which is
 approximately **30M parameters**.
 
+## Architecture diagram
+
+```mermaid
+flowchart TD
+    A["Input token IDs (B, T)"] --> B["Token Embedding<br/>nn.Embedding(50257, 256)"]
+    P["Learned Positional Parameter<br/>(1, 512, 256)"] --> C
+    B --> C(("+"))
+    C --> L
+
+    subgraph L["BitTransformer layer x 4"]
+        direction TB
+        D["Causal Multi-Head Self-Attention<br/>nn.MultiheadAttention(256, 8 heads)"]
+        D --> E(("+ residual"))
+        E --> F["LayerNorm"]
+        F --> G["Feed-Forward<br/>BitLinear(256,1024) -> GELU -> BitLinear(1024,256)"]
+        G --> H(("+ residual"))
+        H --> I["LayerNorm"]
+    end
+
+    L --> J["Output Head<br/>BitLinear(256, 50257)"]
+    J --> K["Logits (B, T, 50257)"]
+
+    subgraph Q["BitLinear: 1.58-bit ternary weight path"]
+        direction TB
+        W["FP weight W"] --> W1["center: W - mean(W)"]
+        W1 --> W2["scale = mean(abs(W))"]
+        W2 --> W3["sign(W)"]
+        W3 --> W4["zero where abs(W) <= 0.5*scale<br/>=> ternary weights in {-1, 0, +1}"]
+        W4 --> W5["Straight-Through Estimator:<br/>quantize forward, pass gradient back"]
+    end
+```
+
+The `BitLinear` block (bottom) is the quantization path applied inside every
+feed-forward layer and the output head. Attention projections use the standard
+`nn.MultiheadAttention` (float) in this configuration; the ternary quantization is
+applied to the feed-forward and output-head linear layers.
+
+## Results
+
+Real, measurable results from the training run (single NVIDIA RTX 3060, TinyStories,
+mixed-precision `float16`, `batch_size=12`, `seq_len=64`):
+
+| Metric                         | Value                                   |
+|--------------------------------|-----------------------------------------|
+| Trained parameters             | ~30M (`d_model=256`, 4 layers)          |
+| Starting loss (step 20)        | 22.0108                                 |
+| Best observed loss (step 2500) | 2.4677                                  |
+| Steady-state loss band         | ~3-4 (noisy, not fully converged)       |
+| Throughput after warmup        | ~0.03 s/step                            |
+| Linear-layer weight states     | 3 (-1, 0, +1), i.e. ~1.58 bits/weight   |
+| Hardware                       | 1x RTX 3060 (12 GB), no multi-GPU       |
+| Dataset                        | `roneneldan/TinyStories` (streamed)     |
+| Output                         | Coherent short narrative text           |
+
+> Note: this project trains a language model from scratch; it is not a token-compression
+> or inference-serving system, so metrics like "input/output tokens cut", "task quality
+> retained across N repositories", or "added latency per request" do not apply here and
+> are intentionally omitted. The numbers above are the figures this project actually
+> produces.
+
 ## Training telemetry (real logs)
 
 Trained on the `roneneldan/TinyStories` dataset, streamed, with AdamW, mixed
