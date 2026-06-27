@@ -189,6 +189,13 @@ streaming datasets are downloaded automatically on first run.
 - The "addition-only" research direction in `train.py` is experimental and has
   not been validated to the same degree as `bitnet.py`.
 
+## Acknowledgements and references
+
+- BitNet b1.58 ternary-weight quantization idea: Ma et al., "The Era of 1-bit
+  LLMs: All Large Language Models are in 1.58 Bits" (2024).
+- Training data: `roneneldan/TinyStories` (Eldan & Li, 2023).
+- Tokenizer: GPT-2 byte-pair encoding via Hugging Face `transformers`.
+
 ## License
 
 Released under the MIT License. See [LICENSE](LICENSE).
